@@ -48,7 +48,7 @@ const SignUp: React.FC = () => {
     try {
       const redirectTo = `${window.location.origin}/auth/callback`; // avoid localhost# issue
 
-      const { data, error } = await supabase.auth.signUp({
+      const {  error } = await supabase.auth.signUp({
         email,
         password,
         options: {
