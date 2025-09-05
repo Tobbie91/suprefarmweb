@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Link } from "react-router-dom";
-import { Home, Sun, Leaf, TrendingUp, DollarSign, Settings, BarChart } from "lucide-react"; // Import relevant icons
+import { Home, Sun, Leaf, DollarSign, Settings, BarChart } from "lucide-react"; // Import relevant icons
 
 const Sidebar: React.FC = () => {
   return (

@@ -1,6 +1,6 @@
 // src/pages/LandPurchase.tsx
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+
 
 // Sample land data (this would eventually be fetched from an API or backend)
 const landPlots = [

@@ -74,23 +74,23 @@ const SignUp: React.FC = () => {
     }
   };
 
-  const handleOAuth = async (provider: 'google' | 'facebook') => {
-    setLoading(true);
-    setError(null);
-    try {
-      const redirectTo = `${window.location.origin}/auth/callback`;
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo },
-      });
-      if (error) setError(error.message);
-      // After OAuth, user will be redirected to redirectTo and you can finish onboarding there.
-    } catch (err) {
-      setError('Unable to start social sign up. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // const handleOAuth = async (provider: 'google' | 'facebook') => {
+  //   setLoading(true);
+  //   setError(null);
+  //   try {
+  //     const redirectTo = `${window.location.origin}/auth/callback`;
+  //     const { error } = await supabase.auth.signInWithOAuth({
+  //       provider,
+  //       options: { redirectTo },
+  //     });
+  //     if (error) setError(error.message);
+  //     // After OAuth, user will be redirected to redirectTo and you can finish onboarding there.
+  //   } catch (err) {
+  //     setError('Unable to start social sign up. Please try again.');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-emerald-50 via-green-50 to-emerald-100 flex items-center justify-center px-4">
