@@ -1,26 +1,24 @@
 // src/components/PrivateRoute.tsx
-import React, { JSX } from 'react';
+import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; 
 
 interface PrivateRouteProps {
-  children: JSX.Element;
+  children: React.ReactNode;
 }
 
 const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
-  const { isAuthenticated, isAdmin } = useAuth();
+  // Check if user is authenticated
+  const isAuthenticated = localStorage.getItem('user') || sessionStorage.getItem('user');
 
   if (!isAuthenticated) {
-    // Redirect to login if not authenticated
+    // Redirect to login page if not authenticated
     return <Navigate to="/login" />;
   }
 
-  if (!isAdmin) {
-    // Redirect to dashboard if user is not admin
-    return <Navigate to="/dashboard" />;
-  }
-
-  return children;
+  return <>{children}</>; // Render children components if authenticated
 };
 
 export default PrivateRoute;
+
+
+

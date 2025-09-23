@@ -1,125 +1,129 @@
-// src/pages/Farms.tsx
-// import React from "react";
-// import { Link } from "react-router-dom";
-// import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-// import { LatLngExpression } from "leaflet"; // Type for coordinates
-
-// const farmData = [
-//   {
-//     id: 1,
-//     name: "Farm 1",
-//     location: "Ilora, Nigeria",
-//     crop: "Palm Tree",
-//     progress: "80%",
-//     coordinates: [7.5000, 3.7500] as LatLngExpression, // Sample coordinates for Farm 1
-//   },
-//   {
-//     id: 2,
-//     name: "Farm 2",
-//     location: "Ghana",
-//     crop: "Cocoa",
-//     progress: "50%",
-//     coordinates: [5.6100, -0.2050] as LatLngExpression, // Sample coordinates for Farm 2
-//   },
-// ];
-
-// const Farms: React.FC = () => {
-//   return (
-//     <div>
-//       <h2 className="text-3xl font-semibold text-gray-700 mb-4">Your Farms</h2>
-//       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-//         {farmData.map((farm) => (
-//           <div key={farm.id} className="bg-white shadow-md rounded-lg p-6">
-//             <h3 className="text-lg font-semibold text-gray-700">{farm.name}</h3>
-//             <p className="text-sm text-gray-500">Location: {farm.location}</p>
-//             <p className="text-sm text-gray-500">Crop: {farm.crop}</p>
-//             <p className="text-sm text-gray-500">Progress: {farm.progress}</p>
-            
-//             {/* Map of the farm */}
-//             <div className="mt-4">
-//               <MapContainer
-//                 center={farm.coordinates}
-//                 zoom={13}
-//                 style={{ height: "300px", width: "100%" }}
-//               >
-//                 <TileLayer
-//                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-//                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-//                 />
-//                 <Marker position={farm.coordinates}>
-//                   <Popup>
-//                     {farm.name} is located here.
-//                     <br />
-//                     Crop: {farm.crop}
-//                   </Popup>
-//                 </Marker>
-//               </MapContainer>
-//             </div>
-            
-//             <Link to={`/farm/${farm.id}`} className="text-green-600 hover:underline mt-4 block">
-//               View Farm Details
-//             </Link>
-//           </div>
-//         ))}
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default Farms;
-
-// src/pages/FarmOverview.tsx
-// src/pages/MyFarms.tsx
-// src/pages/FarmUpdateDetail.tsx
-import React from 'react';
-import { useParams } from 'react-router-dom';
+// src/pages/FarmUpdates.tsx
+import React, { useEffect, useState } from "react";
+import { Card, Skeleton, Empty, Tag } from "antd";
+import { Link, useSearchParams } from "react-router-dom";
+import dayjs from "dayjs";
+import { Sprout, Play, MapPin } from "lucide-react";
 
 const sampleUpdates = [
   {
     id: 1,
-    title: 'New Crop Planting in Farm 1',
-    content: 'Farm 1 in Ilora has started planting a new crop of palm trees...',
-    videoUrl: 'farm_update_video_1.mp4',
-    date: '2023-09-15',
+    farmId: "supre-001",
+    title: "New Crop Planting in Ilora",
+    summary: "Palm seedlings established; irrigation lines tested.",
+    videoUrl: "/farm_update_video_1.mp4",
+    thumb: "https://images.unsplash.com/photo-1498601761256-1efd9884068e?q=80&w=1200&auto=format&fit=crop",
+    date: "2025-09-20",
+    location: "Ilora, Oyo, Nigeria",
   },
   {
     id: 2,
-    title: 'Sustainability Practices in Farm 2',
-    content: 'Farm 2 in Ghana is adopting new sustainable practices...',
-    videoUrl: 'farm_update_video_2.mp4',
-    date: '2023-09-12',
+    farmId: "supre-001",
+    title: "Sustainability Practices",
+    summary: "Cover crops added; soil organic matter rising.",
+    videoUrl: "/farm_update_video_2.mp4",
+    thumb: "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?q=80&w=1200&auto=format&fit=crop",
+    date: "2025-09-17",
+    location: "Ilora, Oyo, Nigeria",
   },
   {
     id: 3,
-    title: 'Weather Impact on Farm Health',
-    content: 'Unusual rainfall has affected soil health, causing some challenges...',
-    videoUrl: 'farm_update_video_3.mp4',
-    date: '2023-09-10',
-  }
+    farmId: "supre-002",
+    title: "Weather Impact",
+    summary: "Heavy rains; access routes re-marked to avoid waterlogged areas.",
+    videoUrl: "/farm_update_video_3.mp4",
+    thumb: "https://images.unsplash.com/photo-1535909339361-9b08486e4941?q=80&w=1200&auto=format&fit=crop",
+    date: "2025-09-15",
+    location: "Ashanti, Ghana",
+  },
 ];
 
-const Farms: React.FC = () => {
-  const { updateId } = useParams(); // Get updateId from the URL
-  const update = sampleUpdates.find((u) => u.id.toString() === updateId);
+const panel = "rounded-2xl bg-white shadow-sm ring-1 ring-black/5";
 
-  if (!update) return <div>Update not found</div>;
+export default function FarmUpdates() {
+  const [params] = useSearchParams();
+  const filterFarmId = params.get("farmId") || undefined;
+
+  const [updates, setUpdates] = useState<typeof sampleUpdates>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Replace with your backend fetch: /api/farm-updates?farmId=...
+    setTimeout(() => {
+      const rows = filterFarmId
+        ? sampleUpdates.filter((u) => u.farmId === filterFarmId)
+        : sampleUpdates;
+      setUpdates(rows);
+      setLoading(false);
+    }, 600);
+  }, [filterFarmId]);
 
   return (
-    <div className="bg-gray-100 min-h-screen p-8">
-      <h1 className="text-3xl font-semibold text-gray-700 mb-8">{update.title}</h1>
-      <p className="text-sm text-gray-500 mb-4">Posted on: {update.date}</p>
+    <div className="min-h-screen bg-[#F6F8FB] px-5 md:px-8 py-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-6 flex items-start gap-3">
+          <div className="h-10 w-10 rounded-full bg-emerald-600/10 flex items-center justify-center">
+            <Sprout className="text-emerald-700" size={20} />
+          </div>
+          <div>
+            <div className="text-2xl md:text-3xl font-semibold text-gray-800">Farm Updates</div>
+            <div className="text-gray-600 text-sm">
+              Latest reports, videos, and notes from your farms.
+            </div>
+          </div>
+        </div>
 
-      <div className="bg-white shadow-md rounded-lg p-6 mb-8">
-        <p className="text-lg text-gray-700">{update.content}</p>
-        <video controls className="w-full mt-4">
-          <source src={update.videoUrl} type="video/mp4" />
-          Your browser does not support the video tag.
-        </video>
+        <Card className={panel}>
+          {loading ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} active avatar paragraph={{ rows: 3 }} />
+              ))}
+            </div>
+          ) : updates.length === 0 ? (
+            <Empty description="No updates yet. Check back soon." />
+          ) : (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {updates.map((u) => (
+                <Link key={u.id} to={`/farm-updates/${u.id}`} className="group">
+                  <div className="overflow-hidden rounded-2xl ring-1 ring-black/5 bg-white">
+                    <div className="relative h-40 w-full">
+                      <img
+                        src={u.thumb}
+                        alt=""
+                        className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-black/40 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1">
+                          <Play size={14} /> Video Update
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <div className="text-base font-semibold text-gray-800 line-clamp-1">
+                        {u.title}
+                      </div>
+                      <div className="mt-1 text-sm text-gray-600 line-clamp-2">{u.summary}</div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="text-xs text-gray-500">
+                          {dayjs(u.date).format("MMM D, YYYY")}
+                        </div>
+                        <div className="text-xs text-gray-600 flex items-center gap-1">
+                          <MapPin size={12} className="text-emerald-700" />
+                          {u.location}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   );
-};
+}
 
-export default Farms;;
 
 

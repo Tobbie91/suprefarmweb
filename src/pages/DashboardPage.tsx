@@ -1,14 +1,13 @@
 import React from 'react';
-import Header from '../components/Header';
-import Dashboard from '../components/Dashboard';
+import EnviroTraceForm from '../components/EnviroTraceForm';
 
-const DashboardPage: React.FC = () => {
+const EnvironmentWeatherPage: React.FC = () => {
   return (
     <div>
       {/* <Header /> */}
-      <Dashboard />
+      <EnviroTraceForm />
     </div>
   );
 };
 
-export default DashboardPage;
+export default EnvironmentWeatherPage;
