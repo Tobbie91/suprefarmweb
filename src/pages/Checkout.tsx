@@ -92,14 +92,21 @@ const Checkout: React.FC = () => {
       currency: urlIntent.currency!,
       amount: urlIntent.amount!,
     };
-  }, [stored, urlIntent.amount, urlIntent.currency, urlIntent.landId, urlIntent.landName, urlIntent.units]);
+  }, [
+    stored,
+    urlIntent.amount,
+    urlIntent.currency,
+    urlIntent.landId,
+    urlIntent.landName,
+    urlIntent.units,
+  ]);
 
   // Local editable copies (allow changing units at checkout)
   const [units, setUnits] = useState<number>(Math.max(1, intent?.units || 1));
   const [form] = Form.useForm();
 
+  // Prefill when we have intent (safe: hook is always called)
   useEffect(() => {
-    // Only prefill when we have an intent
     if (!intent) return;
     try {
       const raw = localStorage.getItem("checkout:buyer");
@@ -109,6 +116,14 @@ const Checkout: React.FC = () => {
       }
     } catch {}
   }, [form, intent]);
+
+  // Pre-fill buyer form from memory (always runs; doesn't depend on intent)
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("checkout:buyer") || "null");
+      if (saved) form.setFieldsValue(saved);
+    } catch {}
+  }, [form]);
 
   const pricePerUnit = intent?.pricePerUnit || 0;
   const currency = intent?.currency || "NGN";
@@ -121,7 +136,6 @@ const Checkout: React.FC = () => {
   const total = subtotal + platformFee + processingFee;
 
   // Buyer form state
-
   const [agree, setAgree] = useState(false);
   const [method, setMethod] = useState<"paystack" | "flutterwave" | "card">("paystack");
   const [submitting, setSubmitting] = useState(false);
@@ -170,8 +184,6 @@ const Checkout: React.FC = () => {
       localStorage.setItem("checkout:buyer", JSON.stringify(values));
 
       // === Integrate your gateway here ===
-      // Example: call your backend to create a reference, then redirect to Paystack:
-      //
       // const res = await fetch("/api/payments/create", {
       //   method: "POST",
       //   headers: { "Content-Type": "application/json" },
@@ -179,8 +191,7 @@ const Checkout: React.FC = () => {
       // });
       // const { authorization_url } = await res.json();
       // window.location.href = authorization_url;
-      //
-      // For now, just show success and go to a stub “receipt” view:
+
       console.log("Submitting checkout payload:", payload);
       message.success("Payment initialized (demo).");
       navigate(`/receipt?status=initialized&amount=${total}`);
@@ -191,14 +202,6 @@ const Checkout: React.FC = () => {
       setSubmitting(false);
     }
   }
-
-  // Pre-fill buyer form from memory
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem("checkout:buyer") || "null");
-      if (saved) form.setFieldsValue(saved);
-    } catch {}
-  }, [form]);
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] px-5 md:px-8 py-8">
@@ -262,7 +265,9 @@ const Checkout: React.FC = () => {
                     <Input placeholder="jane@example.com" />
                   </Form.Item>
 
-                  <Form.Item label="Phone" name="phone"
+                  <Form.Item
+                    label="Phone"
+                    name="phone"
                     rules={[{ required: true, message: "Please enter your phone" }]}
                   >
                     <Input placeholder="+234 800 000 0000" />
@@ -365,7 +370,7 @@ const Checkout: React.FC = () => {
                     <InputNumber
                       min={1}
                       value={units}
-                      onChange={(v) => setUnits(Number(v))}
+                      onChange={(v) => setUnits(Math.max(1, Number(v ?? 1)))}
                       size="small"
                     />
                   </div>
