@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  Sprout,
   Leaf,
   ShieldCheck,
   CloudSun,

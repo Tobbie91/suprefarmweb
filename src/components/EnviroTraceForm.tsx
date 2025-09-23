@@ -21,7 +21,7 @@ export default function EnviroTraceForm() {
     dayjs().subtract(29, "day"),
     dayjs(),
   ]);
-  const [loading, setLoading] = useState(false);
+  const [loading, ] = useState(false);
 
   function useCurrentLocation() {
     if (!navigator.geolocation) {

@@ -5,14 +5,13 @@ import {
   useParams,
   Link,
   useNavigate,
-  useSearchParams,
+  // useSearchParams,
 } from "react-router-dom";
 import dayjs from "dayjs";
 import {
   Sprout,
   Map as MapIcon,
   MapPin,
-  Ruler,
   Cloud,
   ArrowRight,
   ShieldCheck,
@@ -51,8 +50,8 @@ type Weather = {
 };
 
 const panel = "rounded-2xl bg-white shadow-sm ring-1 ring-black/5";
-const CURRENCY = "NGN";
-const NGN = "₦";
+// const CURRENCY = "NGN";
+// const NGN = "₦";
 
 const sampleFarm: Farm = {
   id: "supre-001",
@@ -106,19 +105,19 @@ const FARM_UPDATES_SAMPLE = [
 export default function FarmDashboard() {
   const { farmId } = useParams();
   const navigate = useNavigate();
-  const [params] = useSearchParams(); // optional carry-over context
+  // const [params] = useSearchParams(); // optional carry-over context
   const [farm, setFarm] = useState<Farm | null>(null);
   const [weather, setWeather] = useState<Weather>({});
   const [loading, setLoading] = useState(true);
   const [wLoading, setWLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  const fromResults = {
-    lat: params.get("lat") || "",
-    lon: params.get("lon") || "",
-    start: params.get("start") || "",
-    end: params.get("end") || "",
-  };
+  // const fromResults = {
+  //   lat: params.get("lat") || "",
+  //   lon: params.get("lon") || "",
+  //   start: params.get("start") || "",
+  //   end: params.get("end") || "",
+  // };
 
   // Load farm (Supabase → fallback)
   useEffect(() => {
