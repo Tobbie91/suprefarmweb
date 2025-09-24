@@ -308,20 +308,21 @@ const Checkout: React.FC = () => {
                     </div>
                   </Radio.Button>
                 </Radio.Group>
-
+                
                 <div className="mt-4 flex items-start gap-2">
-                  <Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-                  <div className="text-sm text-gray-600">
-                    I agree to the{" "}
-                    <a className="underline" href="#" onClick={(e) => e.preventDefault()}>
-                      Terms of Purchase
-                    </a>{" "}
-                    and{" "}
-                    <a className="underline" href="#" onClick={(e) => e.preventDefault()}>
-                      Privacy Policy
-                    </a>.
-                  </div>
-                </div>
+  <Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+  <div className="text-sm text-gray-600">
+    I agree to the{" "}
+    <Link to="/terms" className="underline">
+      Terms of Purchase
+    </Link>{" "}
+    and{" "}
+    <Link to="/privacy" className="underline">
+      Privacy Policy
+    </Link>.
+  </div>
+</div>
+
 
                 <div className="mt-6 flex items-center justify-between">
                   <div className="text-xs text-gray-500 flex items-center gap-1">
