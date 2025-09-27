@@ -22,6 +22,8 @@ import {
   ArrowRight,
   Info,
 } from "lucide-react";
+import { supabase } from "../supabase";
+import { devOverride } from "../lib/dev";
 
 type Intent = {
   type: "co-ownership";
@@ -35,6 +37,42 @@ type Intent = {
 };
 
 const CURRENCY_SYMBOL: Record<string, string> = { NGN: "₦", USD: "$" };
+async function getFarmIdBySlug(slug: string): Promise<string | null> {
+  if (!slug) return null;
+  const { data, error } = await supabase.from("farms").select("id").eq("slug", slug).limit(1);
+  if (error || !data?.[0]?.id) return null;
+  return data[0].id as string;
+}
+
+function payWithPaystack(opts: {
+  email: string;
+  amountMinor: number;              // NGN in kobo
+  currency: "NGN" | "USD";
+  reference: string;
+  metadata?: any;
+  onSuccess: (reference: string) => void;
+  onClose: () => void;
+}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const key = process.env.REACT_APP_PAYSTACK_PUBLIC_KEY;
+    if (!key || !window.PaystackPop) {
+      reject(new Error("Paystack not initialized. Check script tag & ENV key."));
+      return;
+    }
+    const handler = window.PaystackPop.setup({
+      key,
+      email: opts.email,
+      amount: Math.round(opts.amountMinor),
+      currency: opts.currency,
+      ref: opts.reference,
+      metadata: opts.metadata,
+      callback: (res: any) => { opts.onSuccess(res.reference); resolve(); },
+      onClose: () => { opts.onClose(); resolve(); },
+    });
+    handler.openIframe();
+  });
+}
+
 
 function formatMoney(amount: number, currency: string) {
   const locale = currency === "NGN" ? "en-NG" : "en-US";
@@ -45,6 +83,15 @@ function formatMoney(amount: number, currency: string) {
   }).format(amount);
 }
 
+function useGoToFarm() {
+  const navigate = useNavigate();
+  return (slug: string, ref?: string) => {
+    navigate(`/farm/${slug}?paid=1${ref ? `&ref=${encodeURIComponent(ref)}` : ""}`, {
+      replace: true,
+      state: { flash: "Payment successful! Your plots have been assigned." },
+    });
+  };
+}
 const panel = "rounded-2xl bg-white shadow-sm ring-1 ring-black/5";
 
 /**
@@ -138,6 +185,8 @@ const Checkout: React.FC = () => {
   const [agree, setAgree] = useState(false);
   const [method, setMethod] = useState<"paystack" | "flutterwave" | "card">("paystack");
   const [submitting, setSubmitting] = useState(false);
+  const goToFarm = useGoToFarm();
+
 
   if (!intent) {
     return (
@@ -163,37 +212,85 @@ const Checkout: React.FC = () => {
   }
 
   async function onPay(values: any) {
-    if (!agree) {
-      message.warning("Please accept the Terms to continue.");
-      return;
-    }
-    setSubmitting(true);
+    if (!agree) { message.warning("Please accept the Terms."); return; }
+    if (!intent) return;
+
+ 
+
+  // 💡 DEV path: open Paystack only; skip auth, farm lookup & claim_plots
+ const DEV = devOverride();
+if (DEV) {
+  const reference = `DEV-${Date.now()}`;
+  const amountMinor = total * 100; // kobo for NGN
+  await payWithPaystack({
+    email: values.email,
+    amountMinor,
+    currency,
+    reference,
+    metadata: { intent, dev: true },
+    onSuccess: (ref) => {
+      const slug = (intent as any).landSlug || String(intent.landId);
+      goToFarm(slug, ref);
+    },
+    onClose: () => message.info("Payment window closed."),
+  });
+  return;
+}
+
+    // user must be signed in (so we can record ownerships)
+    const { data: auth } = await supabase.auth.getUser();
+    const uid = auth?.user?.id;
+    if (!uid) { message.error("Please sign in to continue."); return; }
+  
+    // find farm for this land
+    const landSlug = (intent as any).landSlug || "";
+    const farm_id = await getFarmIdBySlug(landSlug);
+    if (!farm_id) { message.error("Farm not found for this land."); return; }
+  
+    // Paystack expects minor units (kobo for NGN)
+    const amountMinor = total * 100;
+    const reference = `ORD-${Date.now()}`;
+  
     try {
-      const payload = {
-        intent: {
-          ...intent,
+      setSubmitting(true);
+      await payWithPaystack({
+        email: values.email,
+        amountMinor,
+        currency,
+        reference,
+        metadata: {
+          landId: intent.landId,
+          landSlug,
+          landName: intent.landName,
           units: Math.max(1, units || 1),
-          amount: total,
+          buyer: { name: values.fullName, phone: values.phone, country: values.country },
         },
-        buyer: values,
-        method,
-      };
-
-      // Persist buyer for convenience next time
-      localStorage.setItem("checkout:buyer", JSON.stringify(values));
-
-      // === Integrate your gateway here ===
-      // const res = await fetch("/api/payments/create", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify(payload),
-      // });
-      // const { authorization_url } = await res.json();
-      // window.location.href = authorization_url;
-
-      console.log("Submitting checkout payload:", payload);
-      message.success("Payment initialized (demo).");
-      navigate(`/receipt?status=initialized&amount=${total}`);
+          onSuccess: async (refFromGateway: string) => {
+          try {
+            // ⚠️ Demo path: allocate immediately on client callback
+            const { data: auth } = await supabase.auth.getUser();
+            const uid = auth?.user?.id;
+            if (!uid) throw new Error("No user in session.");
+        
+            const landSlug = (intent as any).landSlug || "";
+            const farm_id = await getFarmIdBySlug(landSlug);
+            if (!farm_id) throw new Error("Farm not found for this land.");
+            const { error } = await supabase.rpc("claim_plots", {
+              f_farm_id: farm_id,
+              f_user: uid,
+              n: Math.max(1, units || 1),
+            });
+            if (error) throw error;
+            message.success("Payment successful! Plots assigned.");
+            goToFarm(landSlug, refFromGateway);
+            // navigate(`/land/${landSlug}`);
+          } catch (e: any) {
+            console.error(e);
+            message.error("Payment ok, but failed to assign plots. Contact support.");
+          }
+        },
+        onClose: () => message.info("Payment window closed."),
+      });
     } catch (e: any) {
       console.error(e);
       message.error(e?.message || "Failed to initialize payment.");
@@ -201,7 +298,8 @@ const Checkout: React.FC = () => {
       setSubmitting(false);
     }
   }
-
+  
+  
   return (
     <div className="min-h-screen bg-[#F6F8FB] px-5 md:px-8 py-8">
       <div className="mx-auto max-w-7xl">

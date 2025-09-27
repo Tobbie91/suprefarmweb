@@ -18,6 +18,8 @@ import EnvironmentWeatherPage from './pages/DashboardPage';
 import EnvironmentResults from './pages/DashboardPage2';
 import FarmDashboard from './pages/FarmUpdates';
 import AuthCallback from './pages/AuthCallback';
+import "leaflet/dist/leaflet.css";
+
 
 const App: React.FC = () => {
   return (
@@ -50,9 +52,9 @@ const AppRoutes: React.FC = () => {
           <Route path="/envirotrace" element={<PrivateRoute><EnvironmentWeatherPage /></PrivateRoute>} />
           <Route path="/checkout" element={<PrivateRoute><Checkout  /></PrivateRoute>} />
           <Route  path="/envirotrace/results"  element={<PrivateRoute><EnvironmentResults /></PrivateRoute>} />
-          <Route path="/dashboard/farm/:farmId" element={<PrivateRoute><FarmDashboard /></PrivateRoute>} />
+          <Route path="/farm/:slug" element={<PrivateRoute><FarmDashboard /></PrivateRoute>} />
           <Route path="/farm-updates" element={<PrivateRoute><FarmUpdateDetail /></PrivateRoute>} />
-          <Route path="/farms/:farmId" element={<PrivateRoute><FarmDetails /></PrivateRoute>} />
+          <Route path="/land/:slug"  element={<PrivateRoute><FarmDetails /></PrivateRoute>} />
           <Route path="/land-purchase" element={<PrivateRoute><LandPurchase /></PrivateRoute>} />
           <Route path="/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />
           <Route path="/reports/:id" element={<PrivateRoute><ReportDetail /></PrivateRoute>} />

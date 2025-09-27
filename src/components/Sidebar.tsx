@@ -42,8 +42,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentFarmId, brand = "SupreFarm" })
   const items = [
     { to: "/envirotrace", label: "Environment Trace", icon: Home },
     { to: "/land-purchase", label: "Land Purchase", icon: DollarSign },
-    { to: farmLink, label: "Farm Dashboard", icon: Sun },
-    // { to: "/dashboard/farm/:farmId", label: "Farm Dashboard", icon: Sun },
+    // { to: farmLink, label: "Farm Dashboard", icon: Sun },
+    { to: "/dashboard/farm/:farmId", label: "Farm Dashboard", icon: Sun },
     { to: "/reports", label: "Reports", icon: BarChart, badge: "new" as const },
     { to: "/admin", label: "Admin Panel", icon: Settings },
   ];
