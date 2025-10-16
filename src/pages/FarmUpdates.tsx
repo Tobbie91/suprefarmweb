@@ -1,7 +1,12 @@
 // src/pages/FarmDashboard.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Card, Button, Tag, Alert, Skeleton, message } from "antd";
-import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  useParams,
+  Link,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import dayjs from "dayjs";
 import {
   Sprout,
@@ -23,7 +28,9 @@ import {
 import type { LatLngExpression, LatLngTuple } from "leaflet";
 import L from "leaflet";
 import { fetchOpenMeteo, MeteoResponse } from "../services/openMeteo";
-
+import img1 from "../assets/images/1.jpg";
+import img2 from "../assets/images/2.jpg";
+import img3 from "../assets/images/3.jpg";
 import JSZip from "jszip";
 import * as toGeoJSON from "@tmcw/togeojson";
 import * as turf from "@turf/turf";
@@ -39,8 +46,6 @@ const CANDIDATE_PATHS = (slug: string) => [
   `farms/${slug}.kmz`,
   `farms/${slug}.kml`,
 ];
-
-
 
 // ---------- Types ----------
 type Farm = {
@@ -70,10 +75,12 @@ type PlotFeature = {
   geom_geojson: GeoJSON.Geometry;
   area_ha: number | null;
   mine: boolean;
-  rings: any;
+  rings: LatLngTuple[][];
+  certificate_key?: string | null; // <— ADD
 };
 
-
+// in the SELECT, include ownership meta that holds the storage key (adjust to your schema):
+// ownerships ( user_id, units, certificate_key )
 
 function firstRingFromGeoJSON(geom: GeoJSON.Geometry): LatLngTuple[] | null {
   if (geom.type === "Polygon") {
@@ -91,27 +98,29 @@ async function blobToText(blob: Blob) {
   return await blob.text();
 }
 
-
 // ---------- UI ----------
 const panel = "rounded-2xl bg-white shadow-sm ring-1 ring-black/5";
 
 export default function FarmDashboard() {
   // const { farmId } = useParams();
   const params = useParams();
-const [searchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
-const resolvedSlug = React.useMemo(() => {
-  const candidate =
-    params.farmId ??    
-    params.slug ??      
-    params.id ??    
-    searchParams.get("farmId") ??
-    searchParams.get("slug") ??
-    "";
+  const resolvedSlug = React.useMemo(() => {
+    const candidate =
+      params.farmId ??
+      params.slug ??
+      params.id ??
+      searchParams.get("farmId") ??
+      searchParams.get("slug") ??
+      "";
 
-  const fromPath = candidate || window.location.pathname.split("/").filter(Boolean).pop() || "";
-  return decodeURIComponent(fromPath).trim();
-}, [params, searchParams]);
+    const fromPath =
+      candidate ||
+      window.location.pathname.split("/").filter(Boolean).pop() ||
+      "";
+    return decodeURIComponent(fromPath).trim();
+  }, [params, searchParams]);
 
   const navigate = useNavigate();
 
@@ -125,7 +134,7 @@ const resolvedSlug = React.useMemo(() => {
   const [wLoading, setWLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  const [, setPlots] = useState<PlotFeature[]>([]);
+  // const [, setPlots] = useState<PlotFeature[]>([]);
   const [boundarySource, setBoundarySource] = useState<
     "kml" | "kmz" | "geojson" | "none"
   >("none");
@@ -139,9 +148,12 @@ const resolvedSlug = React.useMemo(() => {
   // Leaflet map ref to fit bounds
   const mapRef = useRef<L.Map | null>(null);
 
-
-  
-
+  // top-level state+ref
+  const [plots, setPlots] = useState<PlotFeature[]>([]);
+  const plotsRef = useRef<PlotFeature[]>([]);
+  useEffect(() => {
+    plotsRef.current = plots;
+  }, [plots]);
 
   // Load farm + boundary (KML/KMZ from storage) + plots
   useEffect(() => {
@@ -150,12 +162,16 @@ const resolvedSlug = React.useMemo(() => {
       setLoading(true);
       try {
         // --- helpers (local to this effect for clarity) ---
-        const extractKmlGeoCollectionFromText = (kmlText: string): GeoCollection => {
+        const extractKmlGeoCollectionFromText = (
+          kmlText: string
+        ): GeoCollection => {
           const dom = new DOMParser().parseFromString(kmlText, "text/xml");
           return toGeoJSON.kml(dom) as GeoCollection;
         };
-  
-        const findBestPolygonRing = (gj: GeoCollection): LatLngTuple[] | null => {
+
+        const findBestPolygonRing = (
+          gj: GeoCollection
+        ): LatLngTuple[] | null => {
           const polys: GeoJSON.Polygon[] = [];
           for (const ft of gj.features || []) {
             const g = ft.geometry;
@@ -174,20 +190,28 @@ const resolvedSlug = React.useMemo(() => {
             const outer = p.coordinates?.[0];
             if (!outer || outer.length < 3) continue;
             const ring = outer.map(([lng, lat]) => [lat, lng]) as LatLngTuple[];
-            const area = turf.area({ type: "Feature", geometry: p as any } as any);
+            const area = turf.area({
+              type: "Feature",
+              geometry: p as any,
+            } as any);
             if (!best || area > best.area) best = { ring, area };
           }
           return best?.ring || null;
         };
-  
-        const bufferFirstPointOrLine = (gj: GeoCollection, meters = 25): LatLngTuple[] | null => {
+
+        const bufferFirstPointOrLine = (
+          gj: GeoCollection,
+          meters = 25
+        ): LatLngTuple[] | null => {
           let candidate: GeoJSON.Geometry | null = null;
           for (const ft of gj.features || []) {
             const g = ft.geometry;
             if (!g) continue;
             if (
-              g.type === "Point" || g.type === "MultiPoint" ||
-              g.type === "LineString" || g.type === "MultiLineString"
+              g.type === "Point" ||
+              g.type === "MultiPoint" ||
+              g.type === "LineString" ||
+              g.type === "MultiLineString"
             ) {
               candidate = g;
               break;
@@ -200,39 +224,47 @@ const resolvedSlug = React.useMemo(() => {
             buffered?.geometry?.type === "Polygon"
               ? (buffered.geometry as GeoJSON.Polygon)
               : buffered?.geometry?.type === "MultiPolygon"
-              ? { type: "Polygon", coordinates: (buffered.geometry as GeoJSON.MultiPolygon).coordinates[0] }
+              ? {
+                  type: "Polygon",
+                  coordinates: (buffered.geometry as GeoJSON.MultiPolygon)
+                    .coordinates[0],
+                }
               : null;
           if (!poly?.coordinates?.[0]) return null;
-          return (poly.coordinates[0] as [number, number][])
-            .map(([lng, lat]) => [lat, lng]) as LatLngTuple[];
+          return (poly.coordinates[0] as [number, number][]).map(
+            ([lng, lat]) => [lat, lng]
+          ) as LatLngTuple[];
         };
-  
+
         // --- 0) Resolve/validate slug from route/query ---
         const slug = resolvedSlug;
-        if (!slug) throw new Error("Missing farm id in the URL (e.g. /farms/{slug}).");
-  
+        if (!slug)
+          throw new Error("Missing farm id in the URL (e.g. /farms/{slug}).");
+
         // --- 1) Load farm (include boundary_geojson for fallback) ---
         const { data: f, error: fe } = await supabase
           .from("farms")
-          .select("id, slug, name, centroid_lat, centroid_lon, area_ha, location, land_id, boundary_geojson")
+          .select(
+            "id, slug, name, centroid_lat, centroid_lon, area_ha, location, land_id, boundary_geojson"
+          )
           .ilike("slug", slug)
           .maybeSingle();
-  
+
         if (fe) throw fe;
         if (!f) throw new Error(`No farm found for slug "${slug}".`);
-  
+
         // --- 2) Try KML/KMZ from Storage (by convention) ---
         let ring: LatLngTuple[] | null = null;
         let source: "kml" | "kmz" | "geojson" | null = null;
-  
+
         for (const path of CANDIDATE_PATHS(slug)) {
           const { data, error } = await supabase.storage
             .from(STORAGE_BUCKET)
             .download(path);
           if (error || !data) continue;
-  
+
           const lower = path.toLowerCase();
-  
+
           // KML path
           if (lower.endsWith(".kml")) {
             const kmlText = await blobToText(data);
@@ -240,7 +272,10 @@ const resolvedSlug = React.useMemo(() => {
             ring = findBestPolygonRing(gj) || bufferFirstPointOrLine(gj, 25);
             if (ring) {
               source = "kml";
-              setKmlDownload({ filename: path.split("/").pop() || `${slug}.kml`, blob: data });
+              setKmlDownload({
+                filename: path.split("/").pop() || `${slug}.kml`,
+                blob: data,
+              });
               break;
             }
           }
@@ -256,7 +291,10 @@ const resolvedSlug = React.useMemo(() => {
               ring = findBestPolygonRing(gj) || bufferFirstPointOrLine(gj, 25);
               if (ring) {
                 source = "kmz";
-                setKmlDownload({ filename: path.split("/").pop() || `${slug}.kmz`, blob: data });
+                setKmlDownload({
+                  filename: path.split("/").pop() || `${slug}.kmz`,
+                  blob: data,
+                });
                 break;
               }
             }
@@ -270,7 +308,10 @@ const resolvedSlug = React.useMemo(() => {
               ring = findBestPolygonRing(gj) || bufferFirstPointOrLine(gj, 25);
               if (ring) {
                 source = "kml";
-                setKmlDownload({ filename: path.split("/").pop() || `${slug}.kml`, blob: data });
+                setKmlDownload({
+                  filename: path.split("/").pop() || `${slug}.kml`,
+                  blob: data,
+                });
                 break;
               }
             } catch {}
@@ -281,10 +322,14 @@ const resolvedSlug = React.useMemo(() => {
                 if (!zpath.toLowerCase().endsWith(".kml")) continue;
                 const kmlText = await zip.files[zpath].async("text");
                 const gj = extractKmlGeoCollectionFromText(kmlText);
-                ring = findBestPolygonRing(gj) || bufferFirstPointOrLine(gj, 25);
+                ring =
+                  findBestPolygonRing(gj) || bufferFirstPointOrLine(gj, 25);
                 if (ring) {
                   source = "kmz";
-                  setKmlDownload({ filename: path.split("/").pop() || `${slug}.kmz`, blob: data });
+                  setKmlDownload({
+                    filename: path.split("/").pop() || `${slug}.kmz`,
+                    blob: data,
+                  });
                   break;
                 }
               }
@@ -292,31 +337,31 @@ const resolvedSlug = React.useMemo(() => {
             } catch {}
           }
         }
-  
+
         // --- 2b) Fuzzy KMZ match (handles names like "ilora farm boundary coord.kmz") ---
         if (!ring) {
           const folders = ["", "farms", "farm"];
           const slugLC = slug.toLowerCase();
-  
+
           for (const folder of folders) {
             const { data: files, error: listErr } = await supabase.storage
               .from(STORAGE_BUCKET)
               .list(folder, { limit: 1000 });
             if (listErr) continue;
-  
+
             const match = files?.find(
               (fobj) =>
                 fobj.name.toLowerCase().includes(slugLC) &&
                 fobj.name.toLowerCase().endsWith(".kmz")
             );
             if (!match) continue;
-  
+
             const key = folder ? `${folder}/${match.name}` : match.name;
             const { data: blob, error: dlErr } = await supabase.storage
               .from(STORAGE_BUCKET)
               .download(key);
             if (dlErr || !blob) continue;
-  
+
             try {
               const ab = await blob.arrayBuffer();
               const zip = await JSZip.loadAsync(ab);
@@ -324,7 +369,8 @@ const resolvedSlug = React.useMemo(() => {
                 if (!zpath.toLowerCase().endsWith(".kml")) continue;
                 const kmlText = await zip.files[zpath].async("text");
                 const gj = extractKmlGeoCollectionFromText(kmlText);
-                ring = findBestPolygonRing(gj) || bufferFirstPointOrLine(gj, 25);
+                ring =
+                  findBestPolygonRing(gj) || bufferFirstPointOrLine(gj, 25);
                 if (ring) {
                   source = "kmz";
                   setKmlDownload({ filename: match.name, blob });
@@ -335,13 +381,13 @@ const resolvedSlug = React.useMemo(() => {
             } catch {}
           }
         }
-  
+
         // --- 2c) DB fallback (geojson) ---
         if (!ring && f.boundary_geojson) {
           ring = firstRingFromGeoJSON(f.boundary_geojson as GeoJSON.Geometry);
           if (ring) source = "geojson";
         }
-  
+
         // --- 2d) Last resort: show marker instead of error ---
         if (!ring) {
           setBoundarySource("none");
@@ -359,7 +405,7 @@ const resolvedSlug = React.useMemo(() => {
           });
           return; // stop here; no polygon to compute
         }
-  
+
         // --- 3) Compute center/area from ring or use DB values ---
         const gjPoly: any = {
           type: "Feature",
@@ -368,16 +414,21 @@ const resolvedSlug = React.useMemo(() => {
             coordinates: [ring.map(([lat, lng]) => [lng, lat])], // [lng,lat]
           },
         };
-        const centroid = turf.centerOfMass(gjPoly).geometry.coordinates as [number, number];
+        const centroid = turf.centerOfMass(gjPoly).geometry.coordinates as [
+          number,
+          number
+        ];
         let centerLat = f.centroid_lat ?? centroid[1];
         let centerLon = f.centroid_lon ?? centroid[0];
-  
+
         const computedHa = Math.round((turf.area(gjPoly) / 10_000) * 100) / 100;
         const areaHa =
-          typeof f.area_ha === "number" && f.area_ha > 0 ? Number(f.area_ha) : computedHa;
-  
+          typeof f.area_ha === "number" && f.area_ha > 0
+            ? Number(f.area_ha)
+            : computedHa;
+
         setBoundarySource(source || "geojson");
-  
+
         // --- 4) Map to UI state ---
         const mapped: Farm = {
           id: f.id,
@@ -390,11 +441,11 @@ const resolvedSlug = React.useMemo(() => {
           boundary: ring,
         };
         setFarm(mapped);
-  
+
         // --- 5) Plots + ownerships (optional) ---
         const { data: auth } = await supabase.auth.getUser();
         const uid = auth?.user?.id || null;
-  
+
         const { data: pl, error: pe } = await supabase
           .from("plots")
           .select(
@@ -408,7 +459,7 @@ const resolvedSlug = React.useMemo(() => {
           )
           .eq("farm_id", f.id);
         if (pe) throw pe;
-  
+
         if (Array.isArray(pl)) {
           const mappedPlots: PlotFeature[] = (pl as any[]).map((p) => {
             const g = p.geom_geojson as GeoJSON.Geometry;
@@ -417,6 +468,11 @@ const resolvedSlug = React.useMemo(() => {
               !!uid && Array.isArray(p.ownerships)
                 ? p.ownerships.some((o: any) => o.user_id === uid)
                 : false;
+
+            const myOwn = Array.isArray(p.ownerships)
+              ? p.ownerships.find((o: any) => o.user_id === uid)
+              : null;
+
             return {
               id: p.id,
               plot_code: p.plot_code,
@@ -424,10 +480,15 @@ const resolvedSlug = React.useMemo(() => {
               area_ha: p.area_ha,
               mine,
               rings: ringP ? [ringP] : [],
+              certificate_key: myOwn?.certificate_key || null,
             };
           });
+
           setPlots(mappedPlots);
-          const myUnits = mappedPlots.reduce((sum, p) => sum + (p.mine ? 1 : 0), 0);
+          const myUnits = mappedPlots.reduce(
+            (sum, p) => sum + (p.mine ? 1 : 0),
+            0
+          );
           setFarm((prev) => (prev ? { ...prev, unitsOwned: myUnits } : prev));
         }
       } catch (e: any) {
@@ -448,9 +509,24 @@ const resolvedSlug = React.useMemo(() => {
       }
     })();
   }, [resolvedSlug]);
-  
-  
-  
+
+  async function downloadCertificate(p: PlotFeature) {
+    const key = p.certificate_key || `${farm?.id}/${p.id}.pdf`;
+    const { data, error } = await supabase.storage
+      .from("certificates")
+      .download(key);
+
+    if (error || !data) {
+      message.error("Certificate not available yet.");
+      return;
+    }
+    const url = URL.createObjectURL(data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = key.split("/").pop() || "certificate.pdf";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   // Fit map to boundary
   useEffect(() => {
@@ -651,6 +727,46 @@ const resolvedSlug = React.useMemo(() => {
                 </div>
               ) : null}
 
+              {/* Plot polygons */}
+              {Array.isArray(plotsRef.current) &&
+                plotsRef.current.map((p) =>
+                  p.rings?.length ? (
+                    <Polygon
+                      key={p.id}
+                      positions={p.rings[0] as LatLngTuple[]}
+                      pathOptions={{
+                        color: p.mine ? "#10b981" : "#64748b",
+                        weight: p.mine ? 3 : 1.5,
+                        fillOpacity: p.mine ? 0.25 : 0.08,
+                      }}
+                    >
+                      <Popup>
+                        <div className="text-sm space-y-1">
+                          <div className="font-medium">
+                            Plot {p.plot_code || p.id}{" "}
+                            {p.mine ? "— Yours ✅" : ""}
+                          </div>
+                          {p.area_ha != null && <div>Area: {p.area_ha} ha</div>}
+                          {p.certificate_key ? (
+                            <button
+                              className="text-emerald-700 underline"
+                              onClick={() => downloadCertificate(p)}
+                            >
+                              Download Survey Certificate
+                            </button>
+                          ) : (
+                            p.mine && (
+                              <div className="text-xs text-gray-500">
+                                Certificate not uploaded yet
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </Popup>
+                    </Polygon>
+                  ) : null
+                )}
+
               {/* Weather quick card */}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <Card className="shadow-sm">
@@ -693,9 +809,18 @@ const resolvedSlug = React.useMemo(() => {
                     <Button
                       className="border-emerald-200 text-emerald-700 hover:!bg-emerald-50"
                       icon={<Download size={16} />}
+                      onClick={() => {
+                        const mine = plotsRef.current.filter(
+                          (p) => p.mine && (p.certificate_key || (farm && p.id))
+                        );
+                        if (!mine.length)
+                          return message.info("No certificate yet.");
+                        downloadCertificate(mine[0]);
+                      }}
                     >
                       Certificate
                     </Button>
+
                     <Button
                       type="primary"
                       className="!bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700"
@@ -733,60 +858,40 @@ const resolvedSlug = React.useMemo(() => {
                   Verified <ShieldCheck size={12} className="ml-1 inline" />
                 </Tag>
               </div>
-
               <div className="mt-4 space-y-3">
-                {[
-                  {
-                    id: 101,
-                    title: "Planting Day — Palm Seedlings",
-                    summary:
-                      "New rows planted with improved spacing; irrigation checks completed.",
-                    date: "2025-09-20",
-                    thumb:
-                      "https://images.unsplash.com/photo-1524593610308-3a35c729ef2d?q=80&w=1200&auto=format&fit=crop",
-                  },
-                  {
-                    id: 102,
-                    title: "Soil Moisture Boost",
-                    summary:
-                      "Drip lines serviced; moisture levels back in target range.",
-                    date: "2025-09-17",
-                    thumb:
-                      "https://images.unsplash.com/photo-1603899122552-96244c135eff?q=80&w=1200&auto=format&fit=crop",
-                  },
-                  {
-                    id: 103,
-                    title: "Weather Watch",
-                    summary:
-                      "Heavy rain expected in 48h. Field access routes marked.",
-                    date: "2025-09-15",
-                    thumb:
-                      "https://images.unsplash.com/photo-1520781359717-3eb98461c9fe?q=80&w=1200&auto=format&fit=crop",
-                  },
-                ].map((u) => (
-                  <Link
-                    key={u.id}
-                    to={`/farm-updates/${u.id}`}
-                    className="flex gap-3 rounded-lg p-2 hover:bg-gray-50"
-                  >
-                    <img
-                      src={u.thumb}
-                      alt=""
-                      className="h-16 w-24 rounded-md object-cover"
-                    />
-                    <div>
-                      <div className="font-medium text-gray-800">{u.title}</div>
-                      <div className="text-sm text-gray-600 line-clamp-2">
-                        {u.summary}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {dayjs(u.date).format("MMM D, YYYY")}
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-
+  {[
+    {
+      id: 101,
+      title: "Planting Day — Palm Seedlings",
+      summary: "New rows planted with improved spacing; irrigation checks completed.",
+      date: "2025-09-20",
+      thumb: img1,          // ← use imported image
+    },
+    {
+      id: 102,
+      title: "Soil Moisture Boost",
+      summary: "Drip lines serviced; moisture levels back in target range.",
+      date: "2025-09-17",
+      thumb: img2,
+    },
+    {
+      id: 103,
+      title: "Weather Watch",
+      summary: "Heavy rain expected in 48h. Field access routes marked.",
+      date: "2025-09-15",
+      thumb: img3,
+    },
+  ].map((u) => (
+    <Link key={u.id} to={`/farm-updates/${u.id}`} className="flex gap-3 rounded-lg p-2 hover:bg-gray-50">
+      <img src={u.thumb} alt="" className="h-16 w-24 rounded-md object-cover" />
+      <div>
+        <div className="font-medium text-gray-800">{u.title}</div>
+        <div className="text-sm text-gray-600 line-clamp-2">{u.summary}</div>
+        <div className="text-xs text-gray-400 mt-1">{dayjs(u.date).format("MMM D, YYYY")}</div>
+      </div>
+    </Link>
+  ))}
+</div>
               <div className="mt-4">
                 <Link
                   to={`/reports?farmId=${encodeURIComponent(farm?.name || "")}`}

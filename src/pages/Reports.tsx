@@ -12,7 +12,9 @@ import {
 import { Link, useSearchParams } from "react-router-dom";
 import dayjs, { Dayjs } from "dayjs";
 import { Sprout, MapPin, CalendarRange, ArrowRight } from "lucide-react";
-
+import img1 from "../assets/images/1.jpg";
+import img4 from "../assets/images/4.jpg";
+import img7 from "../assets/images/7.jpg";
 const { RangePicker } = DatePicker;
 
 type Report = {
@@ -26,51 +28,66 @@ type Report = {
   location?: string;
   tags?: string[];
   videoUrl?: string;
+  images?: string[]; 
 };
 
 const SAMPLE_REPORTS: Report[] = [
   {
     id: 101,
-    title: "Planting Day — Palm Seedlings",
+    title: "Planting Day — Ilora Block A (Palm Seedlings)",
     summary:
-      "Palm seedlings established with improved spacing; drip irrigation checks completed and soil moisture in target band.",
-    cover:
-      "https://images.unsplash.com/photo-1524593610308-3a35c729ef2d?q=80&w=1600&auto=format&fit=crop",
-    date: "2025-09-20",
+      "We completed planting across Ilora Block A with improved 3×3 m spacing. Drip lines were flushed and pressure-tested, and soil moisture readings returned to target after a short irrigation cycle. Seedlings look healthy, staking done, and field notes logged for follow-up.",
+      cover: img1,           
+      images: [img1], 
+    date: "2025-09-15",
     farmId: "supre-001",
     farmName: "Supre Farm — Ilora Block A",
     location: "Ilora, Oyo, Nigeria",
-    tags: ["Planting", "Irrigation", "Operations"],
-    videoUrl: "/farm_update_video_1.mp4",
+    tags: ["Planting", "Operations", "Irrigation", "Soil"],
+    videoUrl: "/videos/ilora-planting-day.mp4"
   },
   {
     id: 102,
-    title: "Sustainability Practices",
+    title: "Perimeter Fencing Completed — Ilora Block A",
     summary:
-      "Cover crops added to reduce erosion and boost organic matter; compost trials initiated on northern plots.",
-    cover:
-      "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?q=80&w=1600&auto=format&fit=crop",
-    date: "2025-09-17",
+      "Perimeter fencing has been completed around Ilora Block A to secure young palm seedlings and define farm boundaries. The new treated-wood posts and wire mesh system enhance field safety and protection from grazing animals.",
+      cover: img4,  
+    date: "2025-09-30",
     farmId: "supre-001",
     farmName: "Supre Farm — Ilora Block A",
     location: "Ilora, Oyo, Nigeria",
-    tags: ["Sustainability", "Soil"],
-    videoUrl: "/farm_update_video_2.mp4",
+    tags: ["Infrastructure", "Security", "Operations"],
+    videoUrl: "https://drive.google.com/file/d/13QUxFpnaTT-oQ_oXxE2FBhlizh2a1s24/view?usp=drive_link"
   },
+  
   {
     id: 103,
-    title: "Weather Watch — Heavy Rains Expected",
+    title: "Progress Update — Cleared Land and Early Growth",
     summary:
-      "48-hour rain window forecast. Field access routes re-marked; drainage inspection checklist shared with crew.",
-    cover:
-      "https://images.unsplash.com/photo-1520781359717-3eb98461c9fe?q=80&w=1600&auto=format&fit=crop",
-    date: "2025-09-15",
-    farmId: "supre-002",
-    farmName: "Eastern Ridge",
-    location: "Ashanti, Ghana",
-    tags: ["Weather", "Logistics", "Safety"],
-    videoUrl: "/farm_update_video_3.mp4",
+      "Field clearing and planting activities continue across Ilora Block A. Newly cleared plots have been leveled and marked for the next planting phase, while early seedlings are showing healthy signs of establishment.",
+    cover: img7,
+    date: "2025-10-05",
+    farmId: "supre-001",
+    farmName: "Supre Farm — Ilora Block A",
+    location: "Ilora, Oyo, Nigeria",
+    tags: ["Progress", "Operations", "Planting", "Clearing"],
+    videoUrl: "/videos/ilora-progress-update.mp4"
   },
+  
+  // {
+  //   id: 103,
+  //   title: "Weather Watch — Heavy Rains Expected",
+  //   summary:
+  //     "48-hour rain window forecast. Field access routes re-marked; drainage inspection checklist shared with crew.",
+  //   cover:
+  //     "https://images.unsplash.com/photo-1520781359717-3eb98461c9fe?q=80&w=1600&auto=format&fit=crop",
+  //   date: "2025-09-15",
+  //   farmId: "supre-002",
+  //   farmName: "Eastern Ridge",
+  //   location: "Ashanti, Ghana",
+  //   tags: ["Weather", "Logistics", "Safety"],
+  //   videoUrl: "/farm_update_video_3.mp4",
+  // },
 ];
 
 const panel = "rounded-2xl bg-white shadow-sm ring-1 ring-black/5";

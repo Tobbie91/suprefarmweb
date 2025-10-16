@@ -360,6 +360,6 @@ export default function EnviroTraceResults() {
           </div>
         </div>
       </Modal>
-    </div>
+    </div> 
   );
 }

@@ -1,27 +1,41 @@
-
-import React, { useState } from "react";
-import { Button, InputNumber, DatePicker, message, Card } from "antd";
+import React, { useEffect, useState } from "react";
+import { Button, InputNumber, DatePicker, message, Card, Select } from "antd";
 import dayjs, { Dayjs } from "dayjs";
 import { MapPin, Navigation, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const { RangePicker } = DatePicker;
 
-const DEFAULT_LAT = 6.5244;   // Lagos
-const DEFAULT_LON = 3.3792;
+// Ilora (only farm for now)
+const ILORA = { id: "ilora", name: "Ilora", lat: 7.803889, lon: 3.831944 };
 
 const panelStyle =
   "rounded-2xl bg-white shadow-sm ring-1 ring-black/5 p-5 md:p-6";
 
 export default function EnviroTraceForm() {
   const navigate = useNavigate();
-  const [lat, setLat] = useState<number>(DEFAULT_LAT);
-  const [lon, setLon] = useState<number>(DEFAULT_LON);
+
+  // default to Ilora selected and auto-filled
+  const [selectedFarmId, setSelectedFarmId] = useState<string | null>(ILORA.id);
+  const [lat, setLat] = useState<number>(ILORA.lat);
+  const [lon, setLon] = useState<number>(ILORA.lon);
   const [range, setRange] = useState<[Dayjs, Dayjs]>([
     dayjs().subtract(29, "day"),
     dayjs(),
   ]);
-  const [loading, ] = useState(false);
+
+  // if you ever swap farms dynamically, keep this helper
+  function onChooseFarm(farmId?: string) {
+    if (!farmId) {
+      setSelectedFarmId(null);
+      return;
+    }
+    setSelectedFarmId(farmId);
+    // only option for now
+    setLat(ILORA.lat);
+    setLon(ILORA.lon);
+    message.success(`Using ${ILORA.name} coordinates`);
+  }
 
   function useCurrentLocation() {
     if (!navigator.geolocation) {
@@ -30,6 +44,7 @@ export default function EnviroTraceForm() {
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        setSelectedFarmId(null); // manual override clears farm selection
         setLat(Number(pos.coords.latitude.toFixed(4)));
         setLon(Number(pos.coords.longitude.toFixed(4)));
         message.success("Location set from device");
@@ -41,12 +56,15 @@ export default function EnviroTraceForm() {
   function goToResults() {
     const start = range[0].format("YYYY-MM-DD");
     const end = range[1].format("YYYY-MM-DD");
+
     const q = new URLSearchParams({
       lat: String(lat),
       lon: String(lon),
       start,
       end,
+      ...(selectedFarmId ? { farmId: ILORA.id, farmName: ILORA.name } : {}),
     }).toString();
+
     navigate(`/envirotrace/results?${q}`);
   }
 
@@ -55,7 +73,20 @@ export default function EnviroTraceForm() {
       <div className="mx-auto max-w-3xl">
         <Card className={panelStyle}>
           <div className="text-2xl font-semibold text-gray-800 mb-2">EnviroTrace</div>
-          <div className="text-gray-600 mb-4">Choose a location and date range.</div>
+          <div className="text-gray-600 mb-4">Choose the farm or enter coordinates & dates.</div>
+
+          {/* Farm selector (single option: Ilora) */}
+          <div className="mb-4">
+            <div className="text-sm font-medium text-gray-800 mb-2">Farm</div>
+            <Select
+              value={selectedFarmId ?? undefined}
+              allowClear
+              onChange={(v) => onChooseFarm(v)}
+              placeholder="Select a farm"
+              className="w-full"
+              options={[{ value: ILORA.id, label: `${ILORA.name} (7°48'14"N, 3°49'55"E)` }]}
+            />
+          </div>
 
           <Button
             type="primary"
@@ -72,9 +103,9 @@ export default function EnviroTraceForm() {
               className="w-full"
               min={-90}
               max={90}
-              step={0.0001}
+              step={0.000001}
               value={lat}
-              onChange={(v) => setLat(Number(v))}
+              onChange={(v) => { setSelectedFarmId(null); setLat(Number(v)); }}
               prefix={<MapPin size={14} />}
             />
 
@@ -83,9 +114,9 @@ export default function EnviroTraceForm() {
               className="w-full"
               min={-180}
               max={180}
-              step={0.0001}
+              step={0.000001}
               value={lon}
-              onChange={(v) => setLon(Number(v))}
+              onChange={(v) => { setSelectedFarmId(null); setLon(Number(v)); }}
               prefix={<MapPin size={14} />}
             />
 
@@ -108,13 +139,12 @@ export default function EnviroTraceForm() {
               className="mt-4 w-full h-10 !bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700"
               onClick={goToResults}
               icon={<RefreshCw size={16} />}
-              loading={loading}
             >
               View Results
             </Button>
 
             <div className="text-xs text-gray-500 mt-3">
-              Use your location or enter coordinates. Data from{" "}
+              Farm selection auto-fills coordinates. Data from{" "}
               <a className="underline" href="https://open-meteo.com" target="_blank" rel="noreferrer">
                 Open-Meteo
               </a>.

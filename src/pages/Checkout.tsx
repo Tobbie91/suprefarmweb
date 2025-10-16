@@ -39,14 +39,18 @@ type Intent = {
 const CURRENCY_SYMBOL: Record<string, string> = { NGN: "₦", USD: "$" };
 async function getFarmIdBySlug(slug: string): Promise<string | null> {
   if (!slug) return null;
-  const { data, error } = await supabase.from("farms").select("id").eq("slug", slug).limit(1);
+  const { data, error } = await supabase
+    .from("farms")
+    .select("id")
+    .eq("slug", slug)
+    .limit(1);
   if (error || !data?.[0]?.id) return null;
   return data[0].id as string;
 }
 
 function payWithPaystack(opts: {
   email: string;
-  amountMinor: number;              // NGN in kobo
+  amountMinor: number; 
   currency: "NGN" | "USD";
   reference: string;
   metadata?: any;
@@ -56,7 +60,9 @@ function payWithPaystack(opts: {
   return new Promise((resolve, reject) => {
     const key = process.env.REACT_APP_PAYSTACK_PUBLIC_KEY;
     if (!key || !window.PaystackPop) {
-      reject(new Error("Paystack not initialized. Check script tag & ENV key."));
+      reject(
+        new Error("Paystack not initialized. Check script tag & ENV key.")
+      );
       return;
     }
     const handler = window.PaystackPop.setup({
@@ -66,13 +72,18 @@ function payWithPaystack(opts: {
       currency: opts.currency,
       ref: opts.reference,
       metadata: opts.metadata,
-      callback: (res: any) => { opts.onSuccess(res.reference); resolve(); },
-      onClose: () => { opts.onClose(); resolve(); },
+      callback: (res: any) => {
+        opts.onSuccess(res.reference);
+        resolve();
+      },
+      onClose: () => {
+        opts.onClose();
+        resolve();
+      },
     });
     handler.openIframe();
   });
 }
-
 
 function formatMoney(amount: number, currency: string) {
   const locale = currency === "NGN" ? "en-NG" : "en-US";
@@ -86,10 +97,13 @@ function formatMoney(amount: number, currency: string) {
 function useGoToFarm() {
   const navigate = useNavigate();
   return (slug: string, ref?: string) => {
-    navigate(`/farm/${slug}?paid=1${ref ? `&ref=${encodeURIComponent(ref)}` : ""}`, {
-      replace: true,
-      state: { flash: "Payment successful! Your plots have been assigned." },
-    });
+    navigate(
+      `/farm/${slug}?paid=1${ref ? `&ref=${encodeURIComponent(ref)}` : ""}`,
+      {
+        replace: true,
+        state: { flash: "Payment successful! Your plots have been assigned." },
+      }
+    );
   };
 }
 const panel = "rounded-2xl bg-white shadow-sm ring-1 ring-black/5";
@@ -107,7 +121,9 @@ const Checkout: React.FC = () => {
   // Pull intent from URL or localStorage
   const stored = (() => {
     try {
-      return JSON.parse(localStorage.getItem("checkout:intent") || "null") as Intent | null;
+      return JSON.parse(
+        localStorage.getItem("checkout:intent") || "null"
+      ) as Intent | null;
     } catch {
       return null;
     }
@@ -124,11 +140,18 @@ const Checkout: React.FC = () => {
   const intent: Intent | null = useMemo(() => {
     // Prefer stored, fall back to URL, derive pricePerUnit if possible
     if (stored) return stored;
-    if (!urlIntent.units || !urlIntent.amount || !urlIntent.currency || !urlIntent.landId) {
+    if (
+      !urlIntent.units ||
+      !urlIntent.amount ||
+      !urlIntent.currency ||
+      !urlIntent.landId
+    ) {
       return null;
     }
     const derivedUnitPrice =
-      urlIntent.units! > 0 ? Math.round(urlIntent.amount! / urlIntent.units!) : urlIntent.amount!;
+      urlIntent.units! > 0
+        ? Math.round(urlIntent.amount! / urlIntent.units!)
+        : urlIntent.amount!;
     return {
       type: "co-ownership",
       landId: urlIntent.landId!,
@@ -166,7 +189,9 @@ const Checkout: React.FC = () => {
   // Pre-fill buyer form from memory (always runs; doesn't depend on intent)
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("checkout:buyer") || "null");
+      const saved = JSON.parse(
+        localStorage.getItem("checkout:buyer") || "null"
+      );
       if (saved) form.setFieldsValue(saved);
     } catch {}
   }, [form]);
@@ -183,10 +208,11 @@ const Checkout: React.FC = () => {
 
   // Buyer form state
   const [agree, setAgree] = useState(false);
-  const [method, setMethod] = useState<"paystack" | "flutterwave" | "card">("paystack");
+  const [method, setMethod] = useState<"paystack" | "flutterwave" | "card">(
+    "paystack"
+  );
   const [submitting, setSubmitting] = useState(false);
   const goToFarm = useGoToFarm();
-
 
   if (!intent) {
     return (
@@ -212,45 +238,52 @@ const Checkout: React.FC = () => {
   }
 
   async function onPay(values: any) {
-    if (!agree) { message.warning("Please accept the Terms."); return; }
+    if (!agree) {
+      message.warning("Please accept the Terms.");
+      return;
+    }
     if (!intent) return;
 
- 
-
-  // 💡 DEV path: open Paystack only; skip auth, farm lookup & claim_plots
- const DEV = devOverride();
-if (DEV) {
-  const reference = `DEV-${Date.now()}`;
-  const amountMinor = total * 100; // kobo for NGN
-  await payWithPaystack({
-    email: values.email,
-    amountMinor,
-    currency,
-    reference,
-    metadata: { intent, dev: true },
-    onSuccess: (ref) => {
-      const slug = (intent as any).landSlug || String(intent.landId);
-      goToFarm(slug, ref);
-    },
-    onClose: () => message.info("Payment window closed."),
-  });
-  return;
-}
+    // 💡 DEV path: open Paystack only; skip auth, farm lookup & claim_plots
+    const DEV = devOverride();
+    if (DEV) {
+      const reference = `DEV-${Date.now()}`;
+      const amountMinor = total * 100; // kobo for NGN
+      await payWithPaystack({
+        email: values.email,
+        amountMinor,
+        currency,
+        reference,
+        metadata: { intent, dev: true },
+        onSuccess: (ref) => {
+          const slug = (intent as any).landSlug || String(intent.landId);
+          goToFarm(slug, ref);
+        },
+        onClose: () => message.info("Payment window closed."),
+      });
+      return;
+    }
 
     // user must be signed in (so we can record ownerships)
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth?.user?.id;
-    if (!uid) { message.error("Please sign in to continue."); return; }
-  
+    if (!uid) {
+      message.error("Please sign in to continue.");
+      return;
+    }
+
     // find farm for this land
     const landSlug = (intent as any).landSlug || "";
     const farm_id = await getFarmIdBySlug(landSlug);
-    if (!farm_id) { message.error("Farm not found for this land."); return; }
-  
+    if (!farm_id) {
+      message.error("Farm not found for this land.");
+      return;
+    }
+
     // Paystack expects minor units (kobo for NGN)
     const amountMinor = total * 100;
     const reference = `ORD-${Date.now()}`;
-  
+
     try {
       setSubmitting(true);
       await payWithPaystack({
@@ -263,15 +296,19 @@ if (DEV) {
           landSlug,
           landName: intent.landName,
           units: Math.max(1, units || 1),
-          buyer: { name: values.fullName, phone: values.phone, country: values.country },
+          buyer: {
+            name: values.fullName,
+            phone: values.phone,
+            country: values.country,
+          },
         },
-          onSuccess: async (refFromGateway: string) => {
+        onSuccess: async (refFromGateway: string) => {
           try {
             // ⚠️ Demo path: allocate immediately on client callback
             const { data: auth } = await supabase.auth.getUser();
             const uid = auth?.user?.id;
             if (!uid) throw new Error("No user in session.");
-        
+
             const landSlug = (intent as any).landSlug || "";
             const farm_id = await getFarmIdBySlug(landSlug);
             if (!farm_id) throw new Error("Farm not found for this land.");
@@ -286,7 +323,9 @@ if (DEV) {
             // navigate(`/land/${landSlug}`);
           } catch (e: any) {
             console.error(e);
-            message.error("Payment ok, but failed to assign plots. Contact support.");
+            message.error(
+              "Payment ok, but failed to assign plots. Contact support."
+            );
           }
         },
         onClose: () => message.info("Payment window closed."),
@@ -298,8 +337,7 @@ if (DEV) {
       setSubmitting(false);
     }
   }
-  
-  
+
   return (
     <div className="min-h-screen bg-[#F6F8FB] px-5 md:px-8 py-8">
       <div className="mx-auto max-w-7xl">
@@ -310,9 +348,13 @@ if (DEV) {
               <Sprout className="text-emerald-700" size={20} />
             </div>
             <div>
-              <div className="text-2xl md:text-3xl font-semibold text-gray-800">Checkout</div>
+              <div className="text-2xl md:text-3xl font-semibold text-gray-800">
+                Checkout
+              </div>
               <div className="text-gray-600">
-                Complete your purchase securely. <ShieldCheck className="inline mx-1" size={16} /> Encrypted payment.
+                Complete your purchase securely.{" "}
+                <ShieldCheck className="inline mx-1" size={16} /> Encrypted
+                payment.
               </div>
             </div>
           </div>
@@ -330,7 +372,9 @@ if (DEV) {
           {/* Left: Buyer + Payment */}
           <div className={panel}>
             <div className="p-5 md:p-6">
-              <div className="text-lg font-semibold text-gray-800">Buyer Details</div>
+              <div className="text-lg font-semibold text-gray-800">
+                Buyer Details
+              </div>
               <div className="text-gray-500 text-sm mb-4">
                 We’ll send your receipt and updates to this email.
               </div>
@@ -346,7 +390,9 @@ if (DEV) {
                   <Form.Item
                     label="Full Name"
                     name="fullName"
-                    rules={[{ required: true, message: "Please enter your name" }]}
+                    rules={[
+                      { required: true, message: "Please enter your name" },
+                    ]}
                   >
                     <Input placeholder="Jane Doe" />
                   </Form.Item>
@@ -365,7 +411,9 @@ if (DEV) {
                   <Form.Item
                     label="Phone"
                     name="phone"
-                    rules={[{ required: true, message: "Please enter your phone" }]}
+                    rules={[
+                      { required: true, message: "Please enter your phone" },
+                    ]}
                   >
                     <Input placeholder="+234 800 000 0000" />
                   </Form.Item>
@@ -377,7 +425,9 @@ if (DEV) {
 
                 <Divider />
 
-                <div className="text-lg font-semibold text-gray-800">Payment Method</div>
+                <div className="text-lg font-semibold text-gray-800">
+                  Payment Method
+                </div>
                 <div className="text-gray-500 text-sm mb-3">
                   Choose a provider to process your payment.
                 </div>
@@ -387,44 +437,57 @@ if (DEV) {
                   onChange={(e) => setMethod(e.target.value)}
                   className="grid gap-3 sm:grid-cols-3"
                 >
-                  <Radio.Button value="paystack" className="!h-auto !py-3 text-center">
+                  <Radio.Button
+                    value="paystack"
+                    className="!h-auto !py-3 text-center"
+                  >
                     <div className="flex flex-col items-center">
                       <CreditCard size={18} className="mb-1" />
                       Paystack
                     </div>
                   </Radio.Button>
-                  <Radio.Button value="flutterwave" className="!h-auto !py-3 text-center">
+                  <Radio.Button
+                    value="flutterwave"
+                    className="!h-auto !py-3 text-center"
+                  >
                     <div className="flex flex-col items-center">
                       <CreditCard size={18} className="mb-1" />
                       Flutterwave
                     </div>
                   </Radio.Button>
-                  <Radio.Button value="card" className="!h-auto !py-3 text-center">
+                  <Radio.Button
+                    value="card"
+                    className="!h-auto !py-3 text-center"
+                  >
                     <div className="flex flex-col items-center">
                       <Lock size={18} className="mb-1" />
                       Card
                     </div>
                   </Radio.Button>
                 </Radio.Group>
-                
-                <div className="mt-4 flex items-start gap-2">
-  <Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-  <div className="text-sm text-gray-600">
-    I agree to the{" "}
-    <Link to="/terms" className="underline">
-      Terms of Purchase
-    </Link>{" "}
-    and{" "}
-    <Link to="/privacy" className="underline">
-      Privacy Policy
-    </Link>.
-  </div>
-</div>
 
+                <div className="mt-4 flex items-start gap-2">
+                  <Checkbox
+                    checked={agree}
+                    onChange={(e) => setAgree(e.target.checked)}
+                  />
+                  <div className="text-sm text-gray-600">
+                    I agree to the{" "}
+                    <Link to="/terms" className="underline">
+                      Terms of Purchase
+                    </Link>{" "}
+                    and{" "}
+                    <Link to="/privacy" className="underline">
+                      Privacy Policy
+                    </Link>
+                    .
+                  </div>
+                </div>
 
                 <div className="mt-6 flex items-center justify-between">
                   <div className="text-xs text-gray-500 flex items-center gap-1">
-                    <Info size={14} /> You’ll be redirected to complete payment securely.
+                    <Info size={14} /> You’ll be redirected to complete payment
+                    securely.
                   </div>
                   <Button
                     htmlType="submit"
@@ -433,7 +496,8 @@ if (DEV) {
                     loading={submitting}
                     className="!bg-emerald-600 !border-emerald-600 hover:!bg-emerald-700"
                   >
-                    Pay {formatMoney(total, currency)} <ArrowRight size={16} className="ml-1" />
+                    Pay {formatMoney(total, currency)}{" "}
+                    <ArrowRight size={16} className="ml-1" />
                   </Button>
                 </div>
               </Form>
@@ -445,10 +509,19 @@ if (DEV) {
             <div className="p-5 md:p-6">
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="text-lg font-semibold text-gray-800">Order Summary</div>
-                  <div className="text-sm text-gray-500">Co-Ownership — {intent.landName}</div>
+                  <div className="text-lg font-semibold text-gray-800">
+                    Order Summary
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    Co-Ownership — {intent.landName}
+                  </div>
                 </div>
-                <Tag color="green" className="rounded-full px-3 py-1 text-[11px]">Secured</Tag>
+                <Tag
+                  color="green"
+                  className="rounded-full px-3 py-1 text-[11px]"
+                >
+                  Secured
+                </Tag>
               </div>
 
               <Divider />
@@ -478,7 +551,9 @@ if (DEV) {
 
                 <div className="flex items-center justify-between">
                   <div className="text-gray-600">Subtotal</div>
-                  <div className="font-medium">{formatMoney(subtotal, currency)}</div>
+                  <div className="font-medium">
+                    {formatMoney(subtotal, currency)}
+                  </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="text-gray-600">
@@ -487,11 +562,15 @@ if (DEV) {
                       <Info size={14} className="inline ml-1 text-gray-400" />
                     </Tooltip>
                   </div>
-                  <div className="font-medium">{formatMoney(platformFee, currency)}</div>
+                  <div className="font-medium">
+                    {formatMoney(platformFee, currency)}
+                  </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="text-gray-600">Processing</div>
-                  <div className="font-medium">{formatMoney(processingFee, currency)}</div>
+                  <div className="font-medium">
+                    {formatMoney(processingFee, currency)}
+                  </div>
                 </div>
 
                 <Divider className="my-2" />
@@ -509,8 +588,9 @@ if (DEV) {
                 <>
                   <Divider />
                   <div className="text-xs text-gray-500">
-                    Context: Lat {intent.context?.lat}, Lon {intent.context?.lon} |{" "}
-                    {intent.context?.start} → {intent.context?.end}
+                    Context: Lat {intent.context?.lat}, Lon{" "}
+                    {intent.context?.lon} | {intent.context?.start} →{" "}
+                    {intent.context?.end}
                   </div>
                 </>
               )}

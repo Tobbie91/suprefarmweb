@@ -19,6 +19,7 @@ import EnvironmentResults from './pages/DashboardPage2';
 import FarmDashboard from './pages/FarmUpdates';
 import AuthCallback from './pages/AuthCallback';
 import "leaflet/dist/leaflet.css";
+import FarmLanding from './pages/FarmLanding';
 
 
 const App: React.FC = () => {
@@ -47,11 +48,12 @@ const AppRoutes: React.FC = () => {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} /> 
-          <Route path="/kyc" element={<KYC />} />
+          <Route path="/kyc-review" element={<KYC />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/envirotrace" element={<PrivateRoute><EnvironmentWeatherPage /></PrivateRoute>} />
           <Route path="/checkout" element={<PrivateRoute><Checkout  /></PrivateRoute>} />
           <Route  path="/envirotrace/results"  element={<PrivateRoute><EnvironmentResults /></PrivateRoute>} />
+          <Route path="/farm" element={<FarmLanding />} />
           <Route path="/farm/:slug" element={<PrivateRoute><FarmDashboard /></PrivateRoute>} />
           <Route path="/farm-updates" element={<PrivateRoute><FarmUpdateDetail /></PrivateRoute>} />
           <Route path="/land/:slug"  element={<PrivateRoute><FarmDetails /></PrivateRoute>} />
