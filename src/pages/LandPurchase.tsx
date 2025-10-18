@@ -15,7 +15,7 @@ import {
   Spin,
   message,
 } from "antd";
-import { MapPin, Sprout, Ruler, ShieldCheck, ArrowRight } from "lucide-react";
+import { MapPin, Sprout, Ruler, ShieldCheck,} from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { devOverride } from "../lib/dev";

@@ -62,7 +62,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Card, Tag, Spin, Alert, Button, Divider } from "antd";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { MapPin, Sprout, Ruler, ShieldCheck, ArrowLeft, ArrowRight } from "lucide-react";
+import { MapPin, Sprout,  ArrowLeft, ArrowRight } from "lucide-react";
 import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
 import type { Map as LeafletMap } from "leaflet";
 import L from "leaflet";

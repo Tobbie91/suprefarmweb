@@ -1,7 +1,7 @@
-import React from "react";
+
 import { Card, Button } from "antd";
 import { useNavigate } from "react-router-dom";
-import { Sprout, MapPin, ArrowRight } from "lucide-react";
+import { Sprout, ArrowRight } from "lucide-react";
 
 export default function FarmLanding() {
   const navigate = useNavigate();

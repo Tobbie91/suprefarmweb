@@ -115,7 +115,6 @@ const panel = "rounded-2xl bg-white shadow-sm ring-1 ring-black/5";
  * - Stubs out payment; builds payload and navigates (or call your gateway)
  */
 const Checkout: React.FC = () => {
-  const navigate = useNavigate();
   const [params] = useSearchParams();
 
   // Pull intent from URL or localStorage
