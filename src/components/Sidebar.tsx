@@ -1,7 +1,9 @@
+// src/components/Sidebar.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { NavLink, useLocation, generatePath } from "react-router-dom";
-import { Home, Sun, Leaf, DollarSign, Settings, BarChart, ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
-import { supabase } from "../supabase"; // ← make sure this is your configured client
+import { NavLink, useLocation, generatePath,  } from "react-router-dom"; // ← add useNavigate
+import { Home, Sun, Leaf, DollarSign, BarChart, ChevronLeft, ChevronRight, ShieldCheck, LogOut } from "lucide-react";
+import { supabase } from "../supabase";
+import { message } from "antd"; 
 
 type SidebarProps = {
   currentFarmSlug?: string | null;
@@ -9,6 +11,7 @@ type SidebarProps = {
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ currentFarmSlug, brand = "SupreFarm" }) => {
+  // const navigate = useNavigate(); // ← add
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return JSON.parse(localStorage.getItem("ui:sidebarCollapsed") || "false"); }
     catch { return false; }
@@ -17,15 +20,15 @@ const Sidebar: React.FC<SidebarProps> = ({ currentFarmSlug, brand = "SupreFarm" 
     localStorage.setItem("ui:sidebarCollapsed", JSON.stringify(collapsed));
   }, [collapsed]);
 
-  // 🔐 user display info
+  // user display info
   const [displayName, setDisplayName] = useState<string>("User");
   const [email, setEmail] = useState<string>("");
+  const [signingOut, setSigningOut] = useState(false); // ← add
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadUser() {
-      // 1) Auth user (email, metadata)
       const { data: authRes } = await supabase.auth.getUser();
       const user = authRes?.user || null;
 
@@ -35,10 +38,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentFarmSlug, brand = "SupreFarm" 
       }
 
       const metaName =
-        (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) ||
-        "";
+        (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || "";
 
-      // 2) Try profiles.full_name if you keep it there
       const { data: prof } = await supabase
         .from("profiles")
         .select("full_name, avatar_url")
@@ -54,18 +55,56 @@ const Sidebar: React.FC<SidebarProps> = ({ currentFarmSlug, brand = "SupreFarm" 
     }
 
     loadUser();
-
-    // 3) Stay in sync with auth changes (login/logout/profile updates)
     const { data: sub } = supabase.auth.onAuthStateChange(() => loadUser());
-
     return () => {
       cancelled = true;
       sub?.subscription?.unsubscribe();
     };
   }, []);
 
-  const initial = (displayName || email || "U").trim().charAt(0).toUpperCase();
+  // 🔓 LOGOUT
+  const handleLogout = async () => {
+    try {
+      setSigningOut(true);
+  
+      // 1) Ask Supabase to clear local session (fast) and revoke remote session.
+      // If you only want to clear local storage, use { scope: "local" }.
+      const { error } = await supabase.auth.signOut({ scope: "global" });
+      if (error) {
+        console.error("signOut error:", error);
+        message.error(error.message || "Could not sign out");
+        return;
+      }
+  
+      // 2) Clear any app-level caches/flags that could re-login the user
+      const keysToClear = [
+        "checkout:intent",
+        "ui:sidebarCollapsed",
+        "dev:user",                // if you used a dev login flag
+        "auth:role",               // if you store role anywhere
+      ];
+      keysToClear.forEach((k) => localStorage.removeItem(k));
+  
+      // 3) Fallback: clear Supabase auth keys manually (in case storage got weird)
+      Object.keys(localStorage).forEach((k) => {
+        if (k.startsWith("sb-")) localStorage.removeItem(k);
+      });
+  
+      // 4) Optional: verify session is gone (good for debugging)
+      const { data: sessionCheck } = await supabase.auth.getSession();
+      console.log("Post-logout session:", sessionCheck?.session); // should be null
+  
+      // 5) Hard redirect (more reliable than SPA navigate after auth changes)
+      window.location.replace("/login"); // change route if different
+    } catch (e: any) {
+      console.error(e);
+      message.error(e?.message || "Logout failed, please try again");
+    } finally {
+      setSigningOut(false);
+    }
+  };
 
+  const initial = (displayName || email || "U").trim().charAt(0).toUpperCase();
   const farmDashboardLink = useMemo(
     () => (currentFarmSlug ? generatePath("/farm/:slug", { slug: currentFarmSlug }) : "/farm"),
     [currentFarmSlug]
@@ -139,7 +178,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentFarmSlug, brand = "SupreFarm" 
         </ul>
       </nav>
 
-      {/* Profile + Collapse */}
+      {/* Profile + Actions */}
       <div className="p-3 border-t border-white/10">
         <div className={`${collapsed ? "justify-center" : "justify-between"} flex items-center gap-3 px-2 py-2 rounded-lg bg-white/5`}>
           <div className="flex items-center gap-2">
@@ -161,13 +200,25 @@ const Sidebar: React.FC<SidebarProps> = ({ currentFarmSlug, brand = "SupreFarm" 
           )}
         </div>
 
+        {/* Collapse */}
         <button
           onClick={() => setCollapsed((c) => !c)}
-          className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-white/10 hover:bg白/20 text-white px-3 py-2 transition"
+          className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-white/10 hover:bg-white/20 text-white px-3 py-2 transition"
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           {!collapsed && <span className="text-sm">Collapse</span>}
+        </button>
+
+        {/* 🔓 Logout */}
+        <button
+          onClick={handleLogout}
+          disabled={signingOut}
+          className="mt-2 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-white/10 hover:bg-white/20 text-white px-3 py-2 transition disabled:opacity-70"
+          title="Sign out"
+        >
+          <LogOut size={16} />
+          {!collapsed && <span className="text-sm">{signingOut ? "Signing out…" : "Logout"}</span>}
         </button>
       </div>
     </aside>

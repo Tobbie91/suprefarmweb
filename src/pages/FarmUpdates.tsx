@@ -24,12 +24,13 @@ import {
   Polygon,
   CircleMarker,
   Popup,
+  TileLayer,
 } from "react-leaflet";
 import type { LatLngExpression, LatLngTuple } from "leaflet";
 import L from "leaflet";
 import { fetchOpenMeteo, MeteoResponse } from "../services/openMeteo";
 import img1 from "../assets/images/1.jpg";
-import img2 from "../assets/images/2.jpg";
+import img2 from "../assets/images/4.jpg";
 import img3 from "../assets/images/3.jpg";
 import JSZip from "jszip";
 import * as toGeoJSON from "@tmcw/togeojson";
@@ -68,7 +69,6 @@ type Weather = {
 };
 
 type GeoCollection = GeoJSON.FeatureCollection<GeoJSON.Geometry, any>;
-
 type PlotFeature = {
   id: string;
   plot_code: string | null;
@@ -76,8 +76,8 @@ type PlotFeature = {
   area_ha: number | null;
   mine: boolean;
   rings: LatLngTuple[][];
-  certificate_key?: string | null; // <— ADD
 };
+
 
 // in the SELECT, include ownership meta that holds the storage key (adjust to your schema):
 // ownerships ( user_id, units, certificate_key )
@@ -124,8 +124,9 @@ export default function FarmDashboard() {
 
   const navigate = useNavigate();
 
-  // Google basemaps
-  useGoogleMaps(process.env.REACT_APP_GOOGLE_MAPS_API_KEY);
+  // useGoogleMaps(process.env.REACT_APP_GOOGLE_MAPS_API_KEY);
+  const googleReady = useGoogleMaps(process.env.REACT_APP_GOOGLE_MAPS_API_KEY);
+
 
   // State
   const [farm, setFarm] = useState<Farm | null>(null);
@@ -134,28 +135,39 @@ export default function FarmDashboard() {
   const [wLoading, setWLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // const [, setPlots] = useState<PlotFeature[]>([]);
+
   const [boundarySource, setBoundarySource] = useState<
     "kml" | "kmz" | "geojson" | "none"
   >("none");
 
-  // Keep the exact KML (if we loaded one) for the Download button
+
   const [kmlDownload, setKmlDownload] = useState<{
     filename: string;
     blob: Blob;
   } | null>(null);
 
-  // Leaflet map ref to fit bounds
+
   const mapRef = useRef<L.Map | null>(null);
 
-  // top-level state+ref
+
   const [plots, setPlots] = useState<PlotFeature[]>([]);
   const plotsRef = useRef<PlotFeature[]>([]);
   useEffect(() => {
     plotsRef.current = plots;
   }, [plots]);
 
-  // Load farm + boundary (KML/KMZ from storage) + plots
+  const myPlots = plots;
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (loading) {
+        setLoading(false);
+        if (!err) setErr("Loading took too long. Please refresh.");
+      }
+    }, 8000);
+    return () => clearTimeout(t);
+  }, [loading, err]);
+  
+
   useEffect(() => {
     (async () => {
       setErr(null);
@@ -442,55 +454,28 @@ export default function FarmDashboard() {
         };
         setFarm(mapped);
 
-        // --- 5) Plots + ownerships (optional) ---
-        const { data: auth } = await supabase.auth.getUser();
-        const uid = auth?.user?.id || null;
+    // --- 5) My plots via RPC (owned by the logged-in user) ---
+const { data: myPl, error: rpcErr } = await supabase
+.rpc("get_my_plots_for_farm", { in_slug: slug });
 
-        const { data: pl, error: pe } = await supabase
-          .from("plots")
-          .select(
-            `
-            id,
-            plot_code,
-            geom_geojson,
-            area_ha,
-            ownerships ( user_id, units )
-          `
-          )
-          .eq("farm_id", f.id);
-        if (pe) throw pe;
+if (rpcErr) throw rpcErr;
 
-        if (Array.isArray(pl)) {
-          const mappedPlots: PlotFeature[] = (pl as any[]).map((p) => {
-            const g = p.geom_geojson as GeoJSON.Geometry;
-            const ringP = firstRingFromGeoJSON(g);
-            const mine =
-              !!uid && Array.isArray(p.ownerships)
-                ? p.ownerships.some((o: any) => o.user_id === uid)
-                : false;
+const mappedPlots: PlotFeature[] = (myPl || []).map((p: any) => {
+const ringP = firstRingFromGeoJSON(p.geom_geojson as GeoJSON.Geometry);
+return {
+  id: p.id,
+  plot_code: p.plot_code,
+  geom_geojson: p.geom_geojson,
+  area_ha: p.area_ha,
+  mine: true,               // ✅ these are *yours* (RPC already filtered)
+  rings: ringP ? [ringP] : []
+};
+});
 
-            const myOwn = Array.isArray(p.ownerships)
-              ? p.ownerships.find((o: any) => o.user_id === uid)
-              : null;
+setPlots(mappedPlots);
+setFarm(prev => prev ? { ...prev, unitsOwned: mappedPlots.length } : prev);
 
-            return {
-              id: p.id,
-              plot_code: p.plot_code,
-              geom_geojson: g,
-              area_ha: p.area_ha,
-              mine,
-              rings: ringP ? [ringP] : [],
-              certificate_key: myOwn?.certificate_key || null,
-            };
-          });
-
-          setPlots(mappedPlots);
-          const myUnits = mappedPlots.reduce(
-            (sum, p) => sum + (p.mine ? 1 : 0),
-            0
-          );
-          setFarm((prev) => (prev ? { ...prev, unitsOwned: myUnits } : prev));
-        }
+        
       } catch (e: any) {
         console.error(e);
         const msg = e?.message || "";
@@ -510,30 +495,87 @@ export default function FarmDashboard() {
     })();
   }, [resolvedSlug]);
 
-  async function downloadCertificate(p: PlotFeature) {
-    const key = p.certificate_key || `${farm?.id}/${p.id}.pdf`;
-    const { data, error } = await supabase.storage
-      .from("certificates")
-      .download(key);
+  // async function downloadCertificate(p: PlotFeature) {
+  //   const key = p.certificate_key || `${farm?.id}/${p.id}.pdf`;
+  //   const { data, error } = await supabase.storage
+  //     .from("certificates")
+  //     .download(key);
 
-    if (error || !data) {
-      message.error("Certificate not available yet.");
-      return;
-    }
-    const url = URL.createObjectURL(data);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = key.split("/").pop() || "certificate.pdf";
-    a.click();
-    URL.revokeObjectURL(url);
-  }
+  //   if (error || !data) {
+  //     message.error("Certificate not available yet.");
+  //     return;
+  //   }
+  //   const url = URL.createObjectURL(data);
+  //   const a = document.createElement("a");
+  //   a.href = url;
+  //   a.download = key.split("/").pop() || "certificate.pdf";
+  //   a.click();
+  //   URL.revokeObjectURL(url);
+  // }
+
+  // async function downloadCertificate(p: PlotFeature) {
+  // 1) Guard: no key yet
+//   if (!p.certificate_key) {
+//     message.info("Certificate not uploaded yet.");
+//     return;
+//   }
+
+//   // 2) Download (assumes the key is the full path inside the 'certificates' bucket)
+//   try {
+//     const { data, error } = await supabase.storage
+//       .from("certificates")
+//       .download(p.certificate_key);
+
+//     if (error || !data) {
+//       message.error("Certificate not available yet.");
+//       return;
+//     }
+
+//     const url = URL.createObjectURL(data);
+//     const a = document.createElement("a");
+//     a.href = url;
+//     a.download = p.certificate_key.split("/").pop() || "certificate.pdf";
+//     a.click();
+//     URL.revokeObjectURL(url);
+//   } catch (e) {
+//     message.error("Couldn't download certificate. Please try again.");
+//   }
+// }
+
 
   // Fit map to boundary
+  // useEffect(() => {
+  //   if (!farm?.boundary || !mapRef.current) return;
+  //   const bounds = L.latLngBounds(farm.boundary as any);
+  //   mapRef.current.fitBounds(bounds, { padding: [24, 24] });
+  // }, [farm?.boundary]);
+
   useEffect(() => {
-    if (!farm?.boundary || !mapRef.current) return;
-    const bounds = L.latLngBounds(farm.boundary as any);
-    mapRef.current.fitBounds(bounds, { padding: [24, 24] });
-  }, [farm?.boundary]);
+    if (!mapRef.current || (!farm && myPlots.length === 0)) return;
+  
+    // 1) Prefer user's plots
+    if (myPlots.length > 0) {
+      const allLatLngs = myPlots.flatMap(p => p.rings[0] as LatLngTuple[]);
+      if (allLatLngs.length >= 3) {
+        const b = L.latLngBounds(allLatLngs as any);
+        mapRef.current.fitBounds(b, { padding: [24, 24] });
+        return;
+      }
+    }
+  
+    // 2) Fall back to farm boundary if available
+    if (farm?.boundary && farm.boundary.length >= 3) {
+      const b = L.latLngBounds(farm.boundary as any);
+      mapRef.current.fitBounds(b, { padding: [24, 24] });
+      return;
+    }
+  
+    // 3) Last resort: center on centroid with a tight zoom
+    if (farm) {
+      mapRef.current.setView([farm.lat, farm.lon], 17);
+    }
+  }, [myPlots, farm]);
+  
 
   // Weather
   useEffect(() => {
@@ -591,6 +633,7 @@ export default function FarmDashboard() {
     a.click();
     URL.revokeObjectURL(url);
   }
+
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] px-5 md:px-8 py-8">
@@ -683,52 +726,132 @@ export default function FarmDashboard() {
                 <Skeleton active paragraph={{ rows: 6 }} />
               ) : farm ? (
                 <div className="rounded-xl overflow-hidden ring-1 ring-black/5">
-                  <MapContainer
-                    ref={mapRef}
-                    center={[farm.lat, farm.lon] as LatLngExpression}
-                    zoom={16}
-                    className="h-[420px] md:h-[520px] w-full"
-                  >
-                    <LayersControl position="topright">
-                      <LayersControl.BaseLayer checked name="Google Satellite">
-                        <GoogleMutantLayer type="satellite" />
-                      </LayersControl.BaseLayer>
-                      <LayersControl.BaseLayer name="Google Hybrid">
-                        <GoogleMutantLayer type="hybrid" />
-                      </LayersControl.BaseLayer>
-                      <LayersControl.BaseLayer name="Google Terrain">
-                        <GoogleMutantLayer type="terrain" />
-                      </LayersControl.BaseLayer>
-                    </LayersControl>
+  <MapContainer
+    ref={mapRef}
+    center={[farm.lat, farm.lon] as LatLngExpression}
+    zoom={16}
+    className="h-[420px] md:h-[520px] w-full"
+  >
+<LayersControl position="topright">
+  {googleReady ? (
+    <>
+      <LayersControl.BaseLayer checked name="Google Satellite">
+        <GoogleMutantLayer type="satellite" />
+      </LayersControl.BaseLayer>
+      <LayersControl.BaseLayer name="Google Hybrid">
+        <GoogleMutantLayer type="hybrid" />
+      </LayersControl.BaseLayer>
+      <LayersControl.BaseLayer name="Google Terrain">
+        <GoogleMutantLayer type="terrain" />
+      </LayersControl.BaseLayer>
+    </>
+  ) : null}
+      {/* Fallback so the map never looks blank if Google tiles fail */}
+      <LayersControl.BaseLayer checked={!googleReady} name="OpenStreetMap">
+    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+  </LayersControl.BaseLayer>
+</LayersControl>
 
-                    {farm.boundary ? (
-                      <Polygon
-                        positions={farm.boundary}
-                        pathOptions={{ color: "#059669" }}
-                      >
-                        <Popup>
-                          <div className="text-sm">
-                            <div className="font-semibold">{farm.name}</div>
-                            <div>{farm.location || "—"}</div>
-                            <div>{farm.hectares} hectares</div>
-                          </div>
-                        </Popup>
-                      </Polygon>
-                    ) : (
-                      <CircleMarker
-                        center={[farm.lat, farm.lon]}
-                        radius={8}
-                        pathOptions={{ color: "#059669", fillOpacity: 0.9 }}
-                      >
-                        <Popup>{farm.name}</Popup>
-                      </CircleMarker>
-                    )}
-                  </MapContainer>
-                </div>
+    {/* Optional: show farm outline faintly for context */}
+    {farm.boundary ? (
+      <Polygon
+        positions={farm.boundary}
+        pathOptions={{ color: "#059669", weight: 1, opacity: 0.5, fillOpacity: 0.03 }}
+      >
+        <Popup>
+          <div className="text-sm">
+            <div className="font-semibold">{farm.name}</div>
+            <div>{farm.location || "—"}</div>
+            <div>{farm.hectares} hectares</div>
+          </div>
+        </Popup>
+      </Polygon>
+    ) : (
+      // Only show centroid dot if no boundary and no owned plots
+      myPlots.length === 0 && (
+        <CircleMarker
+          center={[farm.lat, farm.lon]}
+          radius={8}
+          pathOptions={{ color: "#059669", fillOpacity: 0.9 }}
+        >
+          <Popup>{farm.name}</Popup>
+        </CircleMarker>
+      )
+    )}
+
+    {/* ✅ Render ONLY the user's owned plots */}
+{myPlots.map((p) =>
+  p.rings?.[0]?.length ? (
+    <Polygon
+      key={p.id}
+      positions={p.rings[0] as LatLngTuple[]}
+      pathOptions={{ color: "#10b981", weight: 3, fillOpacity: 0.25 }}
+    >
+      <Popup>
+        <div className="text-sm space-y-1">
+          <div className="font-medium">
+            Plot {p.plot_code || p.id} — Yours ✅
+          </div>
+          {p.area_ha != null && <div>Area: {p.area_ha} ha</div>}
+        </div>
+      </Popup>
+    </Polygon>
+  ) : null
+)}
+
+
+    {/* ✅ Render ONLY the user's owned plots inside MapContainer */}
+   
+  </MapContainer>
+</div>
+
+                // <div className="rounded-xl overflow-hidden ring-1 ring-black/5">
+                //   <MapContainer
+                //     ref={mapRef}
+                //     center={[farm.lat, farm.lon] as LatLngExpression}
+                //     zoom={16}
+                //     className="h-[420px] md:h-[520px] w-full"
+                //   >
+                //     <LayersControl position="topright">
+                //       <LayersControl.BaseLayer checked name="Google Satellite">
+                //         <GoogleMutantLayer type="satellite" />
+                //       </LayersControl.BaseLayer>
+                //       <LayersControl.BaseLayer name="Google Hybrid">
+                //         <GoogleMutantLayer type="hybrid" />
+                //       </LayersControl.BaseLayer>
+                //       <LayersControl.BaseLayer name="Google Terrain">
+                //         <GoogleMutantLayer type="terrain" />
+                //       </LayersControl.BaseLayer>
+                //     </LayersControl>
+
+                //     {farm.boundary ? (
+                //       <Polygon
+                //         positions={farm.boundary}
+                //         pathOptions={{ color: "#059669" }}
+                //       >
+                //         <Popup>
+                //           <div className="text-sm">
+                //             <div className="font-semibold">{farm.name}</div>
+                //             <div>{farm.location || "—"}</div>
+                //             <div>{farm.hectares} hectares</div>
+                //           </div>
+                //         </Popup>
+                //       </Polygon>
+                //     ) : (
+                //       <CircleMarker
+                //         center={[farm.lat, farm.lon]}
+                //         radius={8}
+                //         pathOptions={{ color: "#059669", fillOpacity: 0.9 }}
+                //       >
+                //         <Popup>{farm.name}</Popup>
+                //       </CircleMarker>
+                //     )}
+                //   </MapContainer>
+                // </div>
               ) : null}
 
               {/* Plot polygons */}
-              {Array.isArray(plotsRef.current) &&
+              {/* {Array.isArray(plotsRef.current) &&
                 plotsRef.current.map((p) =>
                   p.rings?.length ? (
                     <Polygon
@@ -747,7 +870,7 @@ export default function FarmDashboard() {
                             {p.mine ? "— Yours ✅" : ""}
                           </div>
                           {p.area_ha != null && <div>Area: {p.area_ha} ha</div>}
-                          {p.certificate_key ? (
+                          {/* {p.certificate_key ? (
                             <button
                               className="text-emerald-700 underline"
                               onClick={() => downloadCertificate(p)}
@@ -760,12 +883,23 @@ export default function FarmDashboard() {
                                 Certificate not uploaded yet
                               </div>
                             )
-                          )}
+                          )} */}
+                          {/* {p.certificate_key ? (
+  <button
+    className="text-emerald-700 underline"
+    onClick={() => downloadCertificate(p)}
+  >
+    Download Survey Certificate
+  </button>
+) : (
+  p.mine && <div className="text-xs text-gray-500">Certificate not uploaded yet</div>
+)}
+
                         </div>
                       </Popup>
                     </Polygon>
                   ) : null
-                )}
+                )} */} 
 
               {/* Weather quick card */}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -806,7 +940,7 @@ export default function FarmDashboard() {
                     Land size: {farm?.hectares} ha • {farm?.location || "—"}
                   </div>
                   <div className="mt-3 flex gap-2">
-                    <Button
+                    {/* <Button
                       className="border-emerald-200 text-emerald-700 hover:!bg-emerald-50"
                       icon={<Download size={16} />}
                       onClick={() => {
@@ -819,7 +953,7 @@ export default function FarmDashboard() {
                       }}
                     >
                       Certificate
-                    </Button>
+                    </Button> */}
 
                     <Button
                       type="primary"
@@ -869,15 +1003,17 @@ export default function FarmDashboard() {
     },
     {
       id: 102,
-      title: "Soil Moisture Boost",
-      summary: "Drip lines serviced; moisture levels back in target range.",
+      title: "Perimeter Fencing Completed — Ilora Block A",
+      summary:
+      "Perimeter fencing has been completed around Ilora Block A ",
       date: "2025-09-17",
       thumb: img2,
     },
     {
       id: 103,
-      title: "Weather Watch",
-      summary: "Heavy rain expected in 48h. Field access routes marked.",
+      title: "Progress Update — Cleared Land and Early Growth",
+      summary:
+      "Field clearing and planting activities continue across Ilora Block A",
       date: "2025-09-15",
       thumb: img3,
     },

@@ -1,7 +1,7 @@
 // src/pages/Onboarding.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Card, Steps, Form, Input, Select, Upload, Button, Alert, message, Spin, Switch, DatePicker,
+  Card, Steps, Form, Input, Select, Upload, Button, Alert, message, Spin, DatePicker,
 } from "antd";
 import type { UploadProps } from "antd";
 import { ArrowRight, ShieldCheck, CheckCircle2, MapPin, Sun, Leaf } from "lucide-react";
@@ -180,10 +180,16 @@ const Onboarding: React.FC = () => {
         setStep(computed);
 
         // If onboarding completed already, route based on KYC state
-        if (prof?.onboarding_completed && prof.kyc_status === "approved") {
-          navigate(nextPath, { replace: true });
-          return;
-        }
+        // if (prof?.onboarding_completed && prof.kyc_status === "approved") {
+        //   navigate(nextPath, { replace: true });
+        //   return;
+        // }
+        // If onboarding completed already, route based on KYC state
+if (prof?.onboarding_completed && prof.kyc_status === "approved") {
+  navigate(nextPath, { replace: true });
+  return;
+}
+
       } catch (e: any) {
         setErr(e?.message || "Failed to load profile.");
       } finally {
